@@ -1,0 +1,15 @@
+model: qwen2.5:7b
+ollama_host: http://localhost:11434
+web_search:
+  enabled: true
+  provider: searxng
+  searxng_url: http://localhost:8080
+window:
+  width: 400
+  height: 600
+  opacity: 0.92
+  always_on_top: true
+theme:
+  accent: "#43d291"
+  accent_purple: "#8a5adc"
+  bg_dark: "#0a0d12"
