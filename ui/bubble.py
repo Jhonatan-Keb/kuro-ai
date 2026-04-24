@@ -1,81 +1,76 @@
 """
 Burbujas de chat individuales para Kuro AI.
-Estilo glassmorphism oscuro: verde Dendro para AI, púrpura para usuario.
+Colores adaptativos via ui.theme.
 """
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy
-from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, pyqtProperty
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import Qt
+import ui.theme as T
 
 
 class WebBadge(QLabel):
-    """Indicador pequeño de que se usó búsqueda web."""
-
     def __init__(self, parent=None):
-        super().__init__("  buscando en web...", parent)
-        self.setStyleSheet("""
-            QLabel {
-                color: rgba(67, 210, 145, 0.75);
-                background: rgba(67, 210, 145, 0.07);
-                border: 1px solid rgba(67, 210, 145, 0.15);
-                border-radius: 5px;
+        super().__init__("  web", parent)
+        self._apply_style()
+
+    def _apply_style(self):
+        self.setStyleSheet(f"""
+            QLabel {{
+                color: {T.accent(0.80)};
+                background: {T.accent(0.07)};
+                border: 1px solid {T.accent(0.16)};
+                border-radius: 4px;
                 padding: 2px 7px;
-                font-size: 10px;
-                font-family: 'JetBrainsMono Nerd Font Mono', monospace;
-            }
+                font-size: 9px;
+            }}
         """)
+
+    def refresh_theme(self):
+        self._apply_style()
 
 
 class TypingBubble(QWidget):
-    """Tres puntitos animados mientras la AI genera respuesta."""
-
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setContentsMargins(14, 11, 14, 11)
         layout.setSpacing(5)
-
+        self._dots = []
         for i in range(3):
             dot = QLabel("●")
-            dot.setStyleSheet(f"""
-                color: rgba(67, 210, 145, 0.6);
-                font-size: 8px;
-            """)
-            dot.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            dot.setStyleSheet(f"color: {T.accent(0.55)}; font-size: 7px;")
             layout.addWidget(dot)
-            self._animate_dot(dot, delay=i * 200)
-
+            self._dots.append(dot)
         layout.addStretch()
-        self.setMaximumWidth(80)
-        self.setStyleSheet("""
-            TypingBubble {
-                background: rgba(67, 210, 145, 0.07);
-                border: 1px solid rgba(67, 210, 145, 0.14);
+        self.setMaximumWidth(72)
+        self._apply_style()
+
+    def _apply_style(self):
+        self.setStyleSheet(f"""
+            TypingBubble {{
+                background: {T.bubble_ai_bg()};
+                border: 1px solid {T.bubble_ai_border()};
                 border-radius: 14px;
                 border-bottom-left-radius: 4px;
-            }
+            }}
         """)
 
-    def _animate_dot(self, dot: QLabel, delay: int):
-        anim = QPropertyAnimation(dot, b"maximumHeight")
-        anim.setDuration(600)
-        anim.setStartValue(20)
-        anim.setEndValue(8)
-        anim.setEasingCurve(QEasingCurve.Type.InOutSine)
-        anim.setLoopCount(-1)
-        anim.start()
-        self._anim = anim
+    def refresh_theme(self):
+        self._apply_style()
+        for dot in self._dots:
+            dot.setStyleSheet(f"color: {T.accent(0.55)}; font-size: 7px;")
 
 
 class MessageBubble(QWidget):
     """
-    Burbuja de mensaje completa con label de autor y contenido.
+    Burbuja completa: label de autor + (badge web) + texto.
     role: 'user' | 'ai'
     """
 
     def __init__(self, text: str, role: str = "ai", web_used: bool = False, parent=None):
         super().__init__(parent)
         self.role = role
+        self._web_badge = None
 
         outer = QHBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -83,69 +78,28 @@ class MessageBubble(QWidget):
 
         col = QVBoxLayout()
         col.setSpacing(4)
+        col.setContentsMargins(0, 0, 0, 0)
 
-        # Label de autor
-        author = QLabel("Kuro" if role == "ai" else "Tú")
-        if role == "ai":
-            author.setStyleSheet("""
-                color: rgba(67, 210, 145, 0.55);
-                font-size: 9px;
-                font-weight: 500;
-                letter-spacing: 1.5px;
-                text-transform: uppercase;
-                font-family: 'JetBrainsMono Nerd Font Mono', monospace;
-            """)
-        else:
-            author.setStyleSheet("""
-                color: rgba(138, 90, 220, 0.55);
-                font-size: 9px;
-                font-weight: 500;
-                letter-spacing: 1.5px;
-                text-transform: uppercase;
-                font-family: 'JetBrainsMono Nerd Font Mono', monospace;
-            """)
-        col.addWidget(author)
+        # Autor
+        self._author = QLabel("Kuro" if role == "ai" else "Tú")
+        col.addWidget(self._author)
 
-        # Badge web (solo para AI cuando usó búsqueda)
+        # Badge web
         if role == "ai" and web_used:
-            col.addWidget(WebBadge())
+            self._web_badge = WebBadge()
+            col.addWidget(self._web_badge)
 
-        # Burbuja de texto
-        bubble = QLabel(text)
-        bubble.setWordWrap(True)
-        bubble.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        bubble.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
-
-        if role == "ai":
-            bubble.setStyleSheet("""
-                QLabel {
-                    background: rgba(67, 210, 145, 0.07);
-                    border: 1px solid rgba(67, 210, 145, 0.15);
-                    border-radius: 14px;
-                    border-bottom-left-radius: 4px;
-                    color: rgba(255, 255, 255, 0.88);
-                    font-size: 13px;
-                    line-height: 1.55;
-                    padding: 10px 14px;
-                    font-family: 'JetBrainsMono Nerd Font Mono', monospace;
-                }
-            """)
-        else:
-            bubble.setStyleSheet("""
-                QLabel {
-                    background: rgba(138, 90, 220, 0.13);
-                    border: 1px solid rgba(138, 90, 220, 0.22);
-                    border-radius: 14px;
-                    border-bottom-right-radius: 4px;
-                    color: rgba(255, 255, 255, 0.88);
-                    font-size: 13px;
-                    line-height: 1.55;
-                    padding: 10px 14px;
-                    font-family: 'JetBrainsMono Nerd Font Mono', monospace;
-                }
-            """)
-
-        col.addWidget(bubble)
+        # Texto
+        self._bubble = QLabel(text)
+        self._bubble.setWordWrap(True)
+        self._bubble.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        self._bubble.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Minimum
+        )
+        col.addWidget(self._bubble)
 
         if role == "user":
             outer.addStretch()
@@ -153,8 +107,49 @@ class MessageBubble(QWidget):
         if role == "ai":
             outer.addStretch()
 
-        self.setMaximumWidth(340)
-        if role == "user":
-            self.setContentsMargins(60, 0, 0, 0)
+        self._apply_style()
+
+    def _apply_style(self):
+        if self.role == "ai":
+            self._author.setStyleSheet(f"""
+                color: {T.accent(0.55)};
+                font-size: 9px;
+                font-weight: 500;
+                letter-spacing: 1.5px;
+                text-transform: uppercase;
+            """)
+            self._bubble.setStyleSheet(f"""
+                QLabel {{
+                    background: {T.bubble_ai_bg()};
+                    border: 1px solid {T.bubble_ai_border()};
+                    border-radius: 14px;
+                    border-bottom-left-radius: 4px;
+                    color: {T.text_primary()};
+                    font-size: 13px;
+                    padding: 10px 14px;
+                }}
+            """)
         else:
-            self.setContentsMargins(0, 0, 60, 0)
+            self._author.setStyleSheet(f"""
+                color: {T.purple(0.55)};
+                font-size: 9px;
+                font-weight: 500;
+                letter-spacing: 1.5px;
+                text-transform: uppercase;
+            """)
+            self._bubble.setStyleSheet(f"""
+                QLabel {{
+                    background: {T.bubble_user_bg()};
+                    border: 1px solid {T.bubble_user_border()};
+                    border-radius: 14px;
+                    border-bottom-right-radius: 4px;
+                    color: {T.text_primary()};
+                    font-size: 13px;
+                    padding: 10px 14px;
+                }}
+            """)
+        if self._web_badge:
+            self._web_badge.refresh_theme()
+
+    def refresh_theme(self):
+        self._apply_style()
