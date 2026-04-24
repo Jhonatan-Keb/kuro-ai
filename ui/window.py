@@ -5,10 +5,10 @@ Frameless, draggable, always-on-top, glassmorphism oscuro Dendro.
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QGraphicsDropShadowEffect
+    QLabel, QPushButton, QGraphicsDropShadowEffect, QStyle
 )
-from PyQt6.QtCore import Qt, QPoint, QPropertyAnimation, QEasingCurve, QRect
-from PyQt6.QtGui import QColor, QPainter, QPainterPath, QLinearGradient
+from PyQt6.QtCore import Qt, QPoint, QPropertyAnimation, QEasingCurve, QRect, QSize
+from PyQt6.QtGui import QColor, QPainter, QPainterPath, QLinearGradient, QIcon
 
 from ui.chat_widget import ChatWidget
 from ui.toolbar import Toolbar
@@ -21,8 +21,58 @@ BG_PANEL     = "rgba(255, 255, 255, 0.04)"
 BORDER_COLOR = "rgba(67, 210, 145, 0.18)"
 
 
+class WindowControlButton(QPushButton):
+    """
+    Botón de control de ventana (cerrar/minimizar) que usa
+    los iconos nativos del estilo Qt activo — se adapta al tema KDE.
+    """
+
+    def __init__(self, pixel_metric, tooltip: str, parent=None):
+        super().__init__(parent)
+        self._pixel_metric = pixel_metric
+        self.setToolTip(tooltip)
+        self.setFixedSize(28, 28)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setStyleSheet("""
+            QPushButton {
+                background: rgba(255,255,255,0.05);
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background: rgba(255,255,255,0.12);
+                border-color: rgba(255,255,255,0.18);
+            }
+            QPushButton:pressed {
+                background: rgba(255,255,255,0.20);
+            }
+        """)
+
+    def _get_system_icon(self, style_pixel) -> QIcon:
+        """Obtiene el icono del estilo del sistema activo."""
+        style = self.style()
+        if style:
+            return style.standardIcon(style_pixel)
+        return QIcon()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        # Dibujar el icono del sistema encima del botón base
+        icon_map = {
+            "close":    QStyle.StandardPixmap.SP_TitleBarCloseButton,
+            "minimize": QStyle.StandardPixmap.SP_TitleBarMinButton,
+        }
+        # Guardamos el tipo en el tooltip para saber cuál dibujar
+        key = "close" if "Cerrar" in self.toolTip() else "minimize"
+        icon = self.style().standardIcon(icon_map[key])
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        icon.paint(painter, 4, 4, 20, 20)
+        painter.end()
+
+
 class TitleBar(QWidget):
-    """Barra de título custom con traffic lights y título."""
+    """Barra de título custom con botones nativos del sistema y título."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -33,23 +83,20 @@ class TitleBar(QWidget):
         layout.setContentsMargins(16, 0, 16, 0)
         layout.setSpacing(0)
 
-        # Traffic lights
-        dots_layout = QHBoxLayout()
-        dots_layout.setSpacing(7)
-        for color, tip in [("#ff5f57", "Cerrar"), ("#febc2e", "Minimizar"), ("#28c840", "Maximizar")]:
-            btn = QPushButton()
-            btn.setFixedSize(11, 11)
-            btn.setToolTip(tip)
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background: {color};
-                    border-radius: 5px;
-                    border: none;
-                }}
-                QPushButton:hover {{ opacity: 0.7; }}
-            """)
-            dots_layout.addWidget(btn)
-        layout.addLayout(dots_layout)
+        # Botones de control usando iconos del sistema
+        controls_layout = QHBoxLayout()
+        controls_layout.setSpacing(6)
+
+        self._btn_close = WindowControlButton(
+            QStyle.StandardPixmap.SP_TitleBarCloseButton, "Cerrar"
+        )
+        self._btn_minimize = WindowControlButton(
+            QStyle.StandardPixmap.SP_TitleBarMinButton, "Minimizar"
+        )
+
+        controls_layout.addWidget(self._btn_close)
+        controls_layout.addWidget(self._btn_minimize)
+        layout.addLayout(controls_layout)
         layout.addSpacing(12)
 
         # Título
@@ -171,10 +218,10 @@ class KuroWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # TitleBar
+        # TitleBar — botones conectados directamente por referencia
         self.titlebar = TitleBar(self)
-        self.titlebar.findChildren(QPushButton)[0].clicked.connect(self.close)
-        self.titlebar.findChildren(QPushButton)[1].clicked.connect(self.showMinimized)
+        self.titlebar._btn_close.clicked.connect(self.close)
+        self.titlebar._btn_minimize.clicked.connect(self.showMinimized)
         layout.addWidget(self.titlebar)
 
         # Área de chat

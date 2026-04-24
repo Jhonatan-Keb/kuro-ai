@@ -9,9 +9,10 @@ Presiona Escape para ocultarla, F24 para toggle (requiere KDE shortcut configura
 """
 
 import sys
+import signal
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 
 from ui.window import KuroWindow
 from core.settings import load as load_config
@@ -22,11 +23,24 @@ def main():
     app.setApplicationName("Kuro AI")
     app.setOrganizationName("hoshikokuro")
 
+    # Cerrar limpiamente cuando se usa Ctrl+C desde la terminal
+    signal.signal(signal.SIGINT, lambda *_: app.quit())
+    signal.signal(signal.SIGTERM, lambda *_: app.quit())
+
+    # Pulso cada 200ms para que Python procese señales UNIX (Ctrl+C)
+    # sin esto, el event loop de Qt bloquea las señales del SO
+    pulse = QTimer()
+    pulse.setInterval(200)
+    pulse.timeout.connect(lambda: None)
+    pulse.start()
+
+    # Asegurar que cerrar la ventana termina el proceso
+    app.setQuitOnLastWindowClosed(True)
+
     # Fuente base
     font = QFont("JetBrainsMono Nerd Font Mono", 10)
     app.setFont(font)
 
-    # Hoja de estilos global (scrollbars, tooltips)
     app.setStyleSheet("""
         QToolTip {
             background: rgba(10, 13, 18, 0.95);
